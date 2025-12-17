@@ -13,6 +13,23 @@ app.post("/create-checkout-session", async (req, res) => {
   try {
     const { email, amount, vehicleName, image } = req.body;
 
+    // Validate required fields
+    if (!email || !amount || !vehicleName || !image) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: email, amount, vehicleName, or image",
+      });
+    }
+
+    // Ensure amount is a number
+    const unitAmount = parseInt(amount);
+    if (isNaN(unitAmount) || unitAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid amount value",
+      });
+    }
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
@@ -25,7 +42,7 @@ app.post("/create-checkout-session", async (req, res) => {
               name: vehicleName,
               images: [image],
             },
-            unit_amount: amount, // already in cents
+            unit_amount: unitAmount, // amount in cents
           },
           quantity: 1,
         },
@@ -34,17 +51,21 @@ app.post("/create-checkout-session", async (req, res) => {
       cancel_url: "myapp://payment-cancel",
     });
 
-    res.status(200).json({ url: session.url });
+    res.status(200).json({
+      success: true,
+      sessionId: session.id,
+      url: session.url,
+    });
   } catch (error) {
     console.error("Stripe Error:", error);
     res.status(500).json({
       success: false,
-      message: "Checkout session creation failed",
+      message: error.raw?.message || "Checkout session creation failed",
     });
   }
 });
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
