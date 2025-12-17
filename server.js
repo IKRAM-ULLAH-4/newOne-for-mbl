@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const Stripe = require("stripe");
 const cors = require("cors");
@@ -9,6 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 app.use(cors());
 app.use(express.json());
 
+// Create Checkout Session endpoint
 app.post("/create-checkout-session", async (req, res) => {
   try {
     const { email, amount, vehicleName, image } = req.body;
@@ -21,7 +23,7 @@ app.post("/create-checkout-session", async (req, res) => {
       });
     }
 
-    // Ensure amount is a number
+    // Convert amount to integer cents
     const unitAmount = parseInt(amount);
     if (isNaN(unitAmount) || unitAmount <= 0) {
       return res.status(400).json({
@@ -30,6 +32,7 @@ app.post("/create-checkout-session", async (req, res) => {
       });
     }
 
+    // Create Checkout Session with expanded payment_intent
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
@@ -42,20 +45,29 @@ app.post("/create-checkout-session", async (req, res) => {
               name: vehicleName,
               images: [image],
             },
-            unit_amount: unitAmount, // amount in cents
+            unit_amount: unitAmount,
           },
           quantity: 1,
         },
       ],
       success_url: "myapp://payment-success?session_id={CHECKOUT_SESSION_ID}",
       cancel_url: "myapp://payment-cancel",
+      expand: ["payment_intent"], // <--- important
     });
 
+    // Return full details
     res.status(200).json({
       success: true,
       sessionId: session.id,
       url: session.url,
+      paymentIntent: session.payment_intent ? {
+        id: session.payment_intent.id,
+        amount: session.payment_intent.amount,
+        currency: session.payment_intent.currency,
+        status: session.payment_intent.status,
+      } : null,
     });
+
   } catch (error) {
     console.error("Stripe Error:", error);
     res.status(500).json({
@@ -63,6 +75,11 @@ app.post("/create-checkout-session", async (req, res) => {
       message: error.raw?.message || "Checkout session creation failed",
     });
   }
+});
+
+// Optional: test route
+app.get("/", (req, res) => {
+  res.send("Stripe Checkout Server is running!");
 });
 
 const PORT = process.env.PORT || 5000;
