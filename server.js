@@ -4,8 +4,6 @@ const cors = require("cors");
 require("dotenv").config();
 
 const app = express();
-
-// Use the secret key from .env
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 app.use(cors());
@@ -13,17 +11,21 @@ app.use(express.json());
 
 app.post("/create-checkout-session", async (req, res) => {
   try {
+    const { email, amount, vehicleName, image } = req.body;
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
+      customer_email: email,
       line_items: [
         {
           price_data: {
             currency: "usd",
             product_data: {
-              name: "Elite Motors Booking",
+              name: vehicleName,
+              images: [image],
             },
-            unit_amount: 5000, // $50
+            unit_amount: amount, // already in cents
           },
           quantity: 1,
         },
@@ -34,7 +36,7 @@ app.post("/create-checkout-session", async (req, res) => {
 
     res.status(200).json({ url: session.url });
   } catch (error) {
-    console.error("Stripe error:", error);
+    console.error("Stripe Error:", error);
     res.status(500).json({
       success: false,
       message: "Checkout session creation failed",
